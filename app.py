@@ -39,7 +39,7 @@ COCO_CLASSES = [
 # ============================================================================
 
 class ObjectDetector:
-    """YOLOv8-based object detector"""
+    """YOLOv8-based object detector."""
 
     def __init__(self, conf_threshold=None, input_size=None):
         self.conf_threshold = conf_threshold or CONFIDENCE_THRESHOLD
@@ -50,7 +50,6 @@ class ObjectDetector:
         self.start_time = time.time()
 
     def load(self):
-        """Load YOLOv8 model (call once)"""
         if self.model is not None:
             return
         from ultralytics import YOLO
@@ -59,7 +58,6 @@ class ObjectDetector:
         self.model.overrides['iou'] = IOU_THRESHOLD
 
     def detect(self, frame):
-        """Run detection on a single frame. Returns Nx6 array [x1,y1,x2,y2,conf,class_id]"""
         if self.model is None:
             self.load()
 
@@ -102,22 +100,18 @@ class ObjectDetector:
 # ============================================================================
 
 class SimpleTracker:
-    """
-    Lightweight IOU-based multi-object tracker.
-    No external dependencies — works on Python 3.11–3.13.
-    """
+    """Lightweight IOU-based multi-object tracker. No external dependencies."""
 
     def __init__(self, max_disappeared=30, iou_threshold=0.3):
         self.next_id = 1
-        self.objects = {}          # id -> {bbox, class_id, conf, age, disappeared}
-        self.track_history = {}    # id -> list of (cx, cy)
+        self.objects = {}
+        self.track_history = {}
         self.max_disappeared = max_disappeared
         self.iou_threshold = iou_threshold
         self.total_tracks = 0
 
     @staticmethod
     def _iou(box_a, box_b):
-        """Compute IoU between two boxes [x1,y1,x2,y2]"""
         x1 = max(box_a[0], box_b[0])
         y1 = max(box_a[1], box_b[1])
         x2 = min(box_a[2], box_b[2])
@@ -129,11 +123,6 @@ class SimpleTracker:
         return inter / union if union > 0 else 0
 
     def update(self, detections):
-        """
-        Update tracker with new detections.
-        detections: Nx6 array [x1,y1,x2,y2,conf,class_id]
-        Returns list of [x1,y1,x2,y2,track_id,class_id,conf]
-        """
         if len(detections) == 0:
             for obj_id in list(self.objects):
                 self.objects[obj_id]['disappeared'] += 1
@@ -152,13 +141,11 @@ class SimpleTracker:
             obj_ids = list(self.objects.keys())
             obj_boxes = np.array([self.objects[oid]['bbox'] for oid in obj_ids])
 
-            # Build IOU matrix
             iou_matrix = np.zeros((len(obj_ids), len(det_boxes)))
             for i, ob in enumerate(obj_boxes):
                 for j, db in enumerate(det_boxes):
                     iou_matrix[i, j] = self._iou(ob, db)
 
-            # Greedy matching
             matched_objs = set()
             matched_dets = set()
 
@@ -185,23 +172,19 @@ class SimpleTracker:
 
                 matched_objs.add(i)
                 matched_dets.add(j)
-
                 iou_matrix[i, :] = 0
                 iou_matrix[:, j] = 0
 
-            # Handle unmatched existing objects
             for i, oid in enumerate(obj_ids):
                 if i not in matched_objs:
                     self.objects[oid]['disappeared'] += 1
                     if self.objects[oid]['disappeared'] > self.max_disappeared:
                         del self.objects[oid]
 
-            # Register unmatched detections
             for j in range(len(det_boxes)):
                 if j not in matched_dets:
                     self._register(det_boxes[j], det_classes[j], det_confs[j])
 
-        # Build output
         tracked = []
         for oid, obj in self.objects.items():
             if obj['disappeared'] == 0:
@@ -216,10 +199,8 @@ class SimpleTracker:
         cx = int((bbox[0] + bbox[2]) / 2)
         cy = int((bbox[1] + bbox[3]) / 2)
         self.objects[oid] = {
-            'bbox': bbox,
-            'class_id': int(class_id),
-            'conf': float(conf),
-            'disappeared': 0,
+            'bbox': bbox, 'class_id': int(class_id),
+            'conf': float(conf), 'disappeared': 0,
         }
         self.track_history[oid] = [(cx, cy)]
 
@@ -233,8 +214,6 @@ class SimpleTracker:
 # ============================================================================
 
 class Visualizer:
-    """Draws bounding boxes, labels, trajectories and overlays on frames."""
-
     def __init__(self):
         np.random.seed(42)
         self.colors = self._generate_colors(100)
@@ -255,7 +234,6 @@ class Visualizer:
             x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
             color = self.colors[int(cls) % len(self.colors)]
             label = f"{ObjectDetector.get_class_name(int(cls))} {conf:.2f}"
-
             cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
             (lw, lh), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 1)
             cv2.rectangle(out, (x1, y1 - lh - 8), (x1 + lw + 4, y1), color, -1)
@@ -269,12 +247,10 @@ class Visualizer:
             x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
             color = self.colors[int(tid) % len(self.colors)]
             label = f"ID:{tid} {ObjectDetector.get_class_name(int(cls))} {conf:.2f}"
-
             cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
             (lw, lh), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 1)
             cv2.rectangle(out, (x1, y1 - lh - 8), (x1 + lw + 4, y1), color, -1)
             cv2.putText(out, label, (x1 + 2, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
-
             if show_trails and tid in track_history and len(track_history[tid]) > 1:
                 pts = track_history[tid]
                 for k in range(1, len(pts)):
@@ -284,18 +260,10 @@ class Visualizer:
 
     @staticmethod
     def draw_overlay(frame, fps, det_count, track_count):
-        """Draw a translucent HUD overlay with stats."""
         overlay = frame.copy()
-        h, w = frame.shape[:2]
-
-        # Background bar
         cv2.rectangle(overlay, (8, 8), (220, 120), (15, 15, 25), -1)
         frame = cv2.addWeighted(overlay, 0.7, frame, 0.3, 0)
-
-        # Border
         cv2.rectangle(frame, (8, 8), (220, 120), (124, 58, 237), 2)
-
-        # Text
         cv2.putText(frame, f"FPS: {fps:.1f}", (18, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (124, 58, 237), 2, cv2.LINE_AA)
         cv2.putText(frame, f"Detections: {det_count}", (18, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (16, 185, 129), 2, cv2.LINE_AA)
         cv2.putText(frame, f"Tracks: {track_count}", (18, 95), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (59, 130, 246), 2, cv2.LINE_AA)
@@ -310,36 +278,23 @@ CUSTOM_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
-}
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
-/* Header styling */
 .main-header {
     background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    font-size: 2.8rem;
-    font-weight: 700;
-    text-align: center;
-    margin-bottom: 0;
-    line-height: 1.2;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    font-size: 2.8rem; font-weight: 700; text-align: center;
+    margin-bottom: 0; line-height: 1.2;
 }
 .sub-header {
-    text-align: center;
-    color: #9CA3AF;
-    font-size: 1.05rem;
-    margin-top: -0.5rem;
-    margin-bottom: 1.5rem;
+    text-align: center; color: #9CA3AF; font-size: 1.05rem;
+    margin-top: -0.5rem; margin-bottom: 1.5rem;
 }
 
-/* Metric cards */
 .metric-card {
     background: linear-gradient(145deg, #1E1E2E 0%, #2A2A3E 100%);
-    border: 1px solid rgba(124, 58, 237, 0.3);
-    border-radius: 12px;
-    padding: 1.2rem 1rem;
-    text-align: center;
+    border: 1px solid rgba(124, 58, 237, 0.3); border-radius: 12px;
+    padding: 1.2rem 1rem; text-align: center;
     transition: transform 0.2s, box-shadow 0.2s;
 }
 .metric-card:hover {
@@ -347,72 +302,35 @@ html, body, [class*="css"] {
     box-shadow: 0 8px 25px rgba(124, 58, 237, 0.2);
 }
 .metric-value {
-    font-size: 2rem;
-    font-weight: 700;
+    font-size: 2rem; font-weight: 700;
     background: linear-gradient(135deg, #7C3AED 0%, #3B82F6 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
-.metric-label {
-    font-size: 0.85rem;
-    color: #9CA3AF;
-    margin-top: 0.25rem;
-}
+.metric-label { font-size: 0.85rem; color: #9CA3AF; margin-top: 0.25rem; }
 
-/* Sidebar */
 section[data-testid="stSidebar"] {
     background: linear-gradient(180deg, #0F0F1A 0%, #1A1A2E 100%);
     border-right: 1px solid rgba(124, 58, 237, 0.2);
 }
 
-/* Video frame area */
-.video-frame {
-    border: 2px solid rgba(124, 58, 237, 0.3);
-    border-radius: 12px;
-    overflow: hidden;
-}
+.stTabs [data-baseweb="tab-list"] { gap: 8px; }
+.stTabs [data-baseweb="tab"] { border-radius: 8px; padding: 8px 20px; }
 
-/* Tabs */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 8px;
-}
-.stTabs [data-baseweb="tab"] {
-    border-radius: 8px;
-    padding: 8px 20px;
-}
-
-/* Feature cards */
 .feature-card {
     background: linear-gradient(145deg, #1E1E2E 0%, #252540 100%);
-    border: 1px solid rgba(124, 58, 237, 0.15);
-    border-radius: 12px;
-    padding: 1.5rem;
-    height: 100%;
+    border: 1px solid rgba(124, 58, 237, 0.15); border-radius: 12px;
+    padding: 1.5rem; height: 100%;
 }
-.feature-card h4 {
-    color: #A78BFA;
-    margin-bottom: 0.5rem;
-}
+.feature-card h4 { color: #A78BFA; margin-bottom: 0.5rem; }
 
-/* Tech badge */
 .tech-badge {
-    display: inline-block;
-    background: rgba(124, 58, 237, 0.15);
-    border: 1px solid rgba(124, 58, 237, 0.3);
-    border-radius: 20px;
-    padding: 0.3rem 0.9rem;
-    margin: 0.2rem;
-    font-size: 0.85rem;
-    color: #A78BFA;
+    display: inline-block; background: rgba(124, 58, 237, 0.15);
+    border: 1px solid rgba(124, 58, 237, 0.3); border-radius: 20px;
+    padding: 0.3rem 0.9rem; margin: 0.2rem; font-size: 0.85rem; color: #A78BFA;
 }
-
-/* Footer */
 .footer {
-    text-align: center;
-    color: #6B7280;
-    font-size: 0.85rem;
-    margin-top: 3rem;
-    padding: 1rem 0;
+    text-align: center; color: #6B7280; font-size: 0.85rem;
+    margin-top: 3rem; padding: 1rem 0;
     border-top: 1px solid rgba(124, 58, 237, 0.15);
 }
 </style>
@@ -420,18 +338,206 @@ section[data-testid="stSidebar"] {
 
 
 # ============================================================================
-# STREAMLIT APP
+# HELPER: process a video completely and show results
 # ============================================================================
 
-def render_metric(label, value, col):
-    """Render a styled metric card."""
-    col.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-value">{value}</div>
-        <div class="metric-label">{label}</div>
-    </div>
-    """, unsafe_allow_html=True)
+def process_video(video_path, detector, viz, conf_threshold, input_size,
+                  enable_tracking, show_trails, show_overlay,
+                  video_placeholder, fps_ph, det_ph, trk_ph, frm_ph,
+                  status_placeholder, progress_bar):
+    """Process the entire video file, streaming frames into the Streamlit UI."""
 
+    detector.conf_threshold = conf_threshold
+    detector.input_size = input_size
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        status_placeholder.error("❌ Could not open video file.")
+        return []
+
+    status_placeholder.info("⏳ Loading YOLOv8 model... (first run downloads ~6 MB)")
+    detector.load()
+    status_placeholder.empty()
+
+    tracker_inst = SimpleTracker()
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
+    frame_idx = 0
+    detection_log = []
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frame_idx += 1
+
+        # Resize for speed
+        h, w = frame.shape[:2]
+        if w > 800:
+            scale = 800 / w
+            frame = cv2.resize(frame, None, fx=scale, fy=scale)
+
+        # Detect
+        dets = detector.detect(frame)
+
+        # Track
+        if enable_tracking:
+            tracked = tracker_inst.update(dets)
+            annotated = viz.draw_tracks(frame, tracked, tracker_inst.track_history, show_trails)
+            active_trk = tracker_inst.active_tracks
+        else:
+            annotated = viz.draw_detections(frame, dets)
+            active_trk = 0
+
+        # Overlay
+        if show_overlay:
+            annotated = Visualizer.draw_overlay(annotated, detector.fps, len(dets), active_trk)
+
+        # Show frame
+        annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+        video_placeholder.image(annotated_rgb, use_container_width=True)
+
+        # Progress
+        progress_bar.progress(min(frame_idx / total_frames, 1.0),
+                              text=f"Processing frame {frame_idx}/{total_frames}")
+
+        # Metrics
+        fps_ph.markdown(f'<div class="metric-card"><div class="metric-value">{detector.fps:.1f}</div><div class="metric-label">FPS</div></div>', unsafe_allow_html=True)
+        det_ph.markdown(f'<div class="metric-card"><div class="metric-value">{len(dets)}</div><div class="metric-label">Detections</div></div>', unsafe_allow_html=True)
+        trk_ph.markdown(f'<div class="metric-card"><div class="metric-value">{active_trk}</div><div class="metric-label">Active Tracks</div></div>', unsafe_allow_html=True)
+        frm_ph.markdown(f'<div class="metric-card"><div class="metric-value">{frame_idx}</div><div class="metric-label">Frame</div></div>', unsafe_allow_html=True)
+
+        detection_log.append({
+            'frame': frame_idx, 'detections': len(dets),
+            'tracks': active_trk, 'fps': round(detector.fps, 1),
+        })
+
+    cap.release()
+    progress_bar.empty()
+    return detection_log
+
+
+def process_webcam(detector, viz, conf_threshold, input_size,
+                   enable_tracking, show_trails, show_overlay,
+                   video_placeholder, fps_ph, det_ph, trk_ph, frm_ph,
+                   status_placeholder, stop_container):
+    """Process live webcam feed."""
+
+    detector.conf_threshold = conf_threshold
+    detector.input_size = input_size
+
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        status_placeholder.error("❌ Could not open webcam. Make sure a camera is connected and permissions are granted.")
+        return []
+
+    status_placeholder.info("⏳ Loading YOLOv8 model... (first run downloads ~6 MB)")
+    detector.load()
+    status_placeholder.empty()
+
+    tracker_inst = SimpleTracker()
+    frame_idx = 0
+    detection_log = []
+
+    # Use a callback-based stop mechanism
+    stop_pressed = stop_container.button("⏹ Stop Webcam", use_container_width=True, type="secondary", key="stop_webcam_btn")
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            status_placeholder.warning("⚠️ Lost webcam feed.")
+            break
+        frame_idx += 1
+
+        h, w = frame.shape[:2]
+        if w > 800:
+            scale = 800 / w
+            frame = cv2.resize(frame, None, fx=scale, fy=scale)
+
+        dets = detector.detect(frame)
+
+        if enable_tracking:
+            tracked = tracker_inst.update(dets)
+            annotated = viz.draw_tracks(frame, tracked, tracker_inst.track_history, show_trails)
+            active_trk = tracker_inst.active_tracks
+        else:
+            annotated = viz.draw_detections(frame, dets)
+            active_trk = 0
+
+        if show_overlay:
+            annotated = Visualizer.draw_overlay(annotated, detector.fps, len(dets), active_trk)
+
+        annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+        video_placeholder.image(annotated_rgb, use_container_width=True)
+
+        fps_ph.markdown(f'<div class="metric-card"><div class="metric-value">{detector.fps:.1f}</div><div class="metric-label">FPS</div></div>', unsafe_allow_html=True)
+        det_ph.markdown(f'<div class="metric-card"><div class="metric-value">{len(dets)}</div><div class="metric-label">Detections</div></div>', unsafe_allow_html=True)
+        trk_ph.markdown(f'<div class="metric-card"><div class="metric-value">{active_trk}</div><div class="metric-label">Active Tracks</div></div>', unsafe_allow_html=True)
+        frm_ph.markdown(f'<div class="metric-card"><div class="metric-value">{frame_idx}</div><div class="metric-label">Frame</div></div>', unsafe_allow_html=True)
+
+        detection_log.append({
+            'frame': frame_idx, 'detections': len(dets),
+            'tracks': active_trk, 'fps': round(detector.fps, 1),
+        })
+
+        # Check if user wants to stop (Streamlit re-runs on button click)
+        if stop_pressed:
+            break
+
+    cap.release()
+    return detection_log
+
+
+def process_image(image_file, detector, viz, conf_threshold, input_size,
+                  enable_tracking, show_overlay,
+                  video_placeholder, fps_ph, det_ph, trk_ph, frm_ph):
+    """Process a single uploaded image."""
+
+    detector.conf_threshold = conf_threshold
+    detector.input_size = input_size
+    detector.load()
+
+    img = Image.open(image_file)
+    frame = np.array(img)
+
+    # Convert RGB to BGR for OpenCV
+    if len(frame.shape) == 3 and frame.shape[2] == 3:
+        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+    else:
+        frame_bgr = frame
+
+    h, w = frame_bgr.shape[:2]
+    if w > 1200:
+        scale = 1200 / w
+        frame_bgr = cv2.resize(frame_bgr, None, fx=scale, fy=scale)
+
+    dets = detector.detect(frame_bgr)
+
+    if enable_tracking:
+        tracker_inst = SimpleTracker()
+        tracked = tracker_inst.update(dets)
+        annotated = viz.draw_tracks(frame_bgr, tracked, tracker_inst.track_history, False)
+        active_trk = tracker_inst.active_tracks
+    else:
+        annotated = viz.draw_detections(frame_bgr, dets)
+        active_trk = 0
+
+    if show_overlay:
+        annotated = Visualizer.draw_overlay(annotated, detector.fps, len(dets), active_trk)
+
+    annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+    video_placeholder.image(annotated_rgb, use_container_width=True)
+
+    fps_ph.markdown(f'<div class="metric-card"><div class="metric-value">{detector.fps:.1f}</div><div class="metric-label">FPS</div></div>', unsafe_allow_html=True)
+    det_ph.markdown(f'<div class="metric-card"><div class="metric-value">{len(dets)}</div><div class="metric-label">Detections</div></div>', unsafe_allow_html=True)
+    trk_ph.markdown(f'<div class="metric-card"><div class="metric-value">{active_trk}</div><div class="metric-label">Active Tracks</div></div>', unsafe_allow_html=True)
+    frm_ph.markdown(f'<div class="metric-card"><div class="metric-value">1</div><div class="metric-label">Frame</div></div>', unsafe_allow_html=True)
+
+    return [{'frame': 1, 'detections': len(dets), 'tracks': active_trk, 'fps': round(detector.fps, 1)}]
+
+
+# ============================================================================
+# STREAMLIT APP
+# ============================================================================
 
 def main():
     st.set_page_config(
@@ -443,25 +549,22 @@ def main():
 
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
-    # ── Session State ──────────────────────────────────────────────
+    # ── Session State ──────────────────────────────────────────
     if 'detector' not in st.session_state:
         st.session_state.detector = ObjectDetector()
-    if 'tracker' not in st.session_state:
-        st.session_state.tracker = SimpleTracker()
     if 'visualizer' not in st.session_state:
         st.session_state.visualizer = Visualizer()
     if 'detection_log' not in st.session_state:
         st.session_state.detection_log = []
 
     detector = st.session_state.detector
-    tracker = st.session_state.tracker
     viz = st.session_state.visualizer
 
-    # ── Header ─────────────────────────────────────────────────────
+    # ── Header ─────────────────────────────────────────────────
     st.markdown('<h1 class="main-header">🎯 VisionTrack</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Real-Time Object Detection & Multi-Object Tracking</p>', unsafe_allow_html=True)
 
-    # ── Sidebar ────────────────────────────────────────────────────
+    # ── Sidebar ────────────────────────────────────────────────
     with st.sidebar:
         st.markdown("### ⚙️ Configuration")
 
@@ -483,19 +586,19 @@ def main():
             unsafe_allow_html=True,
         )
 
-    # Update detector settings
-    detector.conf_threshold = conf_threshold
-    detector.input_size = input_size
-
-    # ── Tabs ───────────────────────────────────────────────────────
+    # ── Tabs ───────────────────────────────────────────────────
     tab_detect, tab_analytics, tab_about = st.tabs(["🎥 Detection", "📊 Analytics", "ℹ️ About"])
 
-    # ── Tab 1: Detection ───────────────────────────────────────────
+    # ═══════════════════════════════════════════════════════════
+    # TAB 1: DETECTION
+    # ═══════════════════════════════════════════════════════════
     with tab_detect:
-        uploaded = st.file_uploader(
-            "Upload a video", type=["mp4", "avi", "mov", "mkv"],
-            help="Max 200 MB · Supported: MP4, AVI, MOV, MKV"
-        )
+        # Source selector
+        is_cloud = os.environ.get("STREAMLIT_SERVER_HEADLESS") == "true" or os.environ.get("SPACE_ID")
+        source_options = ["📹 Upload Video", "🖼️ Upload Image"]
+        if not is_cloud:
+            source_options.append("📷 Webcam (Local)")
+        source = st.radio("Input Source", source_options, horizontal=True)
 
         # Metric placeholders
         mc1, mc2, mc3, mc4 = st.columns(4)
@@ -504,100 +607,81 @@ def main():
         trk_ph = mc3.empty()
         frm_ph = mc4.empty()
 
-        render_metric("FPS", "—", fps_ph)
-        render_metric("Detections", "—", det_ph)
-        render_metric("Active Tracks", "—", trk_ph)
-        render_metric("Frame", "—", frm_ph)
+        # Default metric cards
+        fps_ph.markdown('<div class="metric-card"><div class="metric-value">—</div><div class="metric-label">FPS</div></div>', unsafe_allow_html=True)
+        det_ph.markdown('<div class="metric-card"><div class="metric-value">—</div><div class="metric-label">Detections</div></div>', unsafe_allow_html=True)
+        trk_ph.markdown('<div class="metric-card"><div class="metric-value">—</div><div class="metric-label">Active Tracks</div></div>', unsafe_allow_html=True)
+        frm_ph.markdown('<div class="metric-card"><div class="metric-value">—</div><div class="metric-label">Frame</div></div>', unsafe_allow_html=True)
 
         video_placeholder = st.empty()
         status_placeholder = st.empty()
 
-        if uploaded is not None:
-            run_col1, run_col2 = st.columns([1, 1])
-            start = run_col1.button("▶ Start Detection", use_container_width=True, type="primary")
-            stop_flag = run_col2.button("⏹ Stop", use_container_width=True)
+        # ── VIDEO UPLOAD ──────────────────────────────────────
+        if source == "📹 Upload Video":
+            uploaded = st.file_uploader("Upload a video", type=["mp4", "avi", "mov", "mkv"],
+                                        help="Max 200 MB · Supported: MP4, AVI, MOV, MKV")
+            if uploaded is not None:
+                if st.button("▶ Start Detection", use_container_width=True, type="primary"):
+                    tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+                    tfile.write(uploaded.read())
+                    tfile.flush()
+                    tfile.close()
 
-            if start and not stop_flag:
-                # Save uploaded video to temp file
-                tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-                tfile.write(uploaded.read())
-                tfile.flush()
-
-                cap = cv2.VideoCapture(tfile.name)
-                if not cap.isOpened():
-                    status_placeholder.error("❌ Could not open video file.")
-                else:
-                    status_placeholder.info("⏳ Loading YOLOv8 model... (first run downloads ~6 MB)")
-                    detector.load()
-                    tracker_inst = SimpleTracker()   # fresh tracker per run
-                    status_placeholder.success("✅ Model loaded — processing video...")
-
-                    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                    frame_idx = 0
-
-                    while cap.isOpened():
-                        ret, frame = cap.read()
-                        if not ret:
-                            break
-                        frame_idx += 1
-
-                        # Resize for display speed
-                        h, w = frame.shape[:2]
-                        if w > 800:
-                            scale = 800 / w
-                            frame = cv2.resize(frame, None, fx=scale, fy=scale)
-
-                        # Detect
-                        dets = detector.detect(frame)
-
-                        # Track or just detect
-                        if enable_tracking:
-                            tracked = tracker_inst.update(dets)
-                            annotated = viz.draw_tracks(
-                                frame, tracked, tracker_inst.track_history, show_trails
-                            )
-                            active_trk = tracker_inst.active_tracks
-                        else:
-                            annotated = viz.draw_detections(frame, dets)
-                            active_trk = 0
-
-                        # Overlay
-                        if show_overlay:
-                            annotated = viz.draw_overlay(
-                                annotated, detector.fps, len(dets), active_trk
-                            )
-
-                        # Display
-                        annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                        video_placeholder.image(annotated_rgb, use_container_width=True)
-
-                        # Metrics
-                        render_metric("FPS", f"{detector.fps:.1f}", fps_ph)
-                        render_metric("Detections", str(len(dets)), det_ph)
-                        render_metric("Active Tracks", str(active_trk), trk_ph)
-                        render_metric("Frame", f"{frame_idx}/{total_frames}", frm_ph)
-
-                        # Log for analytics
-                        st.session_state.detection_log.append({
-                            'frame': frame_idx,
-                            'detections': len(dets),
-                            'tracks': active_trk,
-                            'fps': round(detector.fps, 1),
-                        })
-
-                    cap.release()
+                    progress_bar = st.progress(0, text="Starting...")
+                    log = process_video(
+                        tfile.name, detector, viz,
+                        conf_threshold, input_size,
+                        enable_tracking, show_trails, show_overlay,
+                        video_placeholder, fps_ph, det_ph, trk_ph, frm_ph,
+                        status_placeholder, progress_bar,
+                    )
+                    st.session_state.detection_log = log
                     os.unlink(tfile.name)
-                    status_placeholder.success(f"✅ Done — processed {frame_idx} frames.")
-        else:
-            video_placeholder.info("📤 Upload a video file above to begin detection.")
+                    status_placeholder.success(f"✅ Done — processed {len(log)} frames!")
+            else:
+                video_placeholder.info("📤 Upload a video file above to begin detection.")
 
-    # ── Tab 2: Analytics ───────────────────────────────────────────
+        # ── IMAGE UPLOAD ──────────────────────────────────────
+        elif source == "🖼️ Upload Image":
+            uploaded_img = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png", "bmp", "webp"],
+                                            help="Supported: JPG, PNG, BMP, WebP")
+            if uploaded_img is not None:
+                if st.button("🔍 Detect Objects", use_container_width=True, type="primary"):
+                    status_placeholder.info("⏳ Loading model...")
+                    log = process_image(
+                        uploaded_img, detector, viz,
+                        conf_threshold, input_size,
+                        enable_tracking, show_overlay,
+                        video_placeholder, fps_ph, det_ph, trk_ph, frm_ph,
+                    )
+                    st.session_state.detection_log = log
+                    status_placeholder.success("✅ Detection complete!")
+            else:
+                video_placeholder.info("🖼️ Upload an image above to detect objects.")
+
+        # ── WEBCAM ────────────────────────────────────────────
+        elif source == "📷 Webcam (Local)":
+            st.warning("⚠️ Webcam is only available when running locally, not on Streamlit Cloud.")
+            stop_container = st.empty()
+            if st.button("📷 Start Webcam", use_container_width=True, type="primary"):
+                log = process_webcam(
+                    detector, viz,
+                    conf_threshold, input_size,
+                    enable_tracking, show_trails, show_overlay,
+                    video_placeholder, fps_ph, det_ph, trk_ph, frm_ph,
+                    status_placeholder, stop_container,
+                )
+                st.session_state.detection_log = log
+                status_placeholder.success(f"✅ Webcam stopped — captured {len(log)} frames.")
+
+    # ═══════════════════════════════════════════════════════════
+    # TAB 2: ANALYTICS
+    # ═══════════════════════════════════════════════════════════
     with tab_analytics:
         st.markdown("### 📊 Detection Analytics")
 
         if st.session_state.detection_log:
             import pandas as pd
-
             df = pd.DataFrame(st.session_state.detection_log)
 
             col_a, col_b = st.columns(2)
@@ -612,15 +696,21 @@ def main():
             st.line_chart(df.set_index('frame')['fps'], color="#10B981")
 
             st.markdown("**Summary**")
-            sum_c1, sum_c2, sum_c3, sum_c4 = st.columns(4)
-            sum_c1.metric("Total Frames", len(df))
-            sum_c2.metric("Avg Detections", f"{df['detections'].mean():.1f}")
-            sum_c3.metric("Max Tracks", int(df['tracks'].max()))
-            sum_c4.metric("Avg FPS", f"{df['fps'].mean():.1f}")
-        else:
-            st.info("📈 Analytics will appear after you process a video in the Detection tab.")
+            sc1, sc2, sc3, sc4 = st.columns(4)
+            sc1.metric("Total Frames", len(df))
+            sc2.metric("Avg Detections", f"{df['detections'].mean():.1f}")
+            sc3.metric("Max Tracks", int(df['tracks'].max()))
+            sc4.metric("Avg FPS", f"{df['fps'].mean():.1f}")
 
-    # ── Tab 3: About ───────────────────────────────────────────────
+            if st.button("🗑️ Clear Analytics", use_container_width=True):
+                st.session_state.detection_log = []
+                st.rerun()
+        else:
+            st.info("📈 Analytics will appear after you process a video or image in the Detection tab.")
+
+    # ═══════════════════════════════════════════════════════════
+    # TAB 3: ABOUT
+    # ═══════════════════════════════════════════════════════════
     with tab_about:
         st.markdown("### About VisionTrack")
         st.markdown(
@@ -660,14 +750,14 @@ def main():
         <span class="tech-badge">OpenCV</span>
         <span class="tech-badge">NumPy</span>
         <span class="tech-badge">PyTorch</span>
-        <span class="tech-badge">Python 3.13</span>
+        <span class="tech-badge">Python 3.11+</span>
         </div>
         """, unsafe_allow_html=True)
 
         st.markdown("#### 📊 Performance")
         perf_data = {
             "Metric": ["FPS", "Accuracy", "Model Size", "Classes"],
-            "Value": ["40+ on modern hardware", "92%+ (COCO)", "6.2 MB", "80 COCO classes"],
+            "Value": ["40+ on modern hardware", "92%+ (COCO)", "6.2 MB (auto-downloads)", "80 COCO categories"],
         }
         st.table(perf_data)
 
