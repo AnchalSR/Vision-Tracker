@@ -1,7 +1,18 @@
+---
+title: VisionTrack
+emoji: 🎯
+colorFrom: purple
+colorTo: pink
+sdk: streamlit
+sdk_version: "1.30.0"
+app_file: app.py
+pinned: false
+license: mit
+---
+
 # 🎯 VisionTrack: Real-Time Object Detection & Tracking
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/anchalsr/vision-tracker/main/app.py)
-[![Python](https://img.shields.io/badge/Python-3.11%20|%203.13-blue?logo=python)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A real-time object detection and multi-object tracking system built with **YOLOv8** and **Streamlit**.
@@ -15,7 +26,7 @@ A real-time object detection and multi-object tracking system built with **YOLOv
 - 📊 **Live Analytics** — Detection charts, FPS graphs, and summary stats
 - 🎨 **Premium Dark UI** — Glassmorphic design with gradient accents
 - 📹 **Video Upload** — Supports MP4, AVI, MOV, MKV (up to 200 MB)
-- 🐍 **Python 3.11–3.13** — Zero compatibility issues
+- 🖼️ **Image Detection** — Single-frame object detection on images
 
 ## 🚀 Quick Start
 
@@ -28,11 +39,11 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-### Deploy on Streamlit Cloud
+### Deploy on Hugging Face Spaces
 
-1. Go to [share.streamlit.io](https://share.streamlit.io)
-2. Connect this repository → select `app.py`
-3. Deploy — live in ~5 minutes 🎉
+1. Create a new Space on [huggingface.co/spaces](https://huggingface.co/spaces) with **Streamlit** SDK
+2. Upload all project files (or connect this GitHub repo)
+3. Wait for build (~5 minutes) — your app is live! 🎉
 
 ## 📦 Project Structure
 
@@ -43,7 +54,7 @@ Vision-Tracker/
 ├── packages.txt            # System dependencies (OpenCV)
 ├── .streamlit/config.toml  # Theme & server config
 ├── .gitignore
-└── README.md
+└── README.md               # This file (with HF metadata)
 ```
 
 ## 🛠️ Tech Stack
